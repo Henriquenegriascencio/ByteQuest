@@ -1,13 +1,1320 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ByteQuest - Aprenda Programação Grátis</title>
+  <!-- Tailwind CSS v3 CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;750;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #print-certificate-area, #print-certificate-area * { visibility: visible; }
+      #print-certificate-area {
+        position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+        border: 20px solid #D4AF37 !important; box-shadow: none !important;
+        margin: 0 !important; padding: 2.5rem !important;
+      }
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
+  <div id="root"></div>
 
+  <!-- React, ReactDOM & Babel for Browser Compiler -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- AUDIO SYNTHESIZER ---
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+    function playSound(type) {
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        if (type === 'correct') {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, now); osc.frequency.setValueAtTime(659.25, now + 0.1); osc.frequency.setValueAtTime(880, now + 0.2);
+          gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+          osc.connect(gain); gain.connect(ctx.destination); osc.start(now); osc.stop(now + 0.35);
+        } else if (type === 'incorrect') {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(220, now); osc.frequency.exponentialRampToValueAtTime(110, now + 0.3);
+          gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+          osc.connect(gain); gain.connect(ctx.destination); osc.start(now); osc.stop(now + 0.35);
+        } else if (type === 'click') {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sine';
+          osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(150, now + 0.08);
+          gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          osc.connect(gain); gain.connect(ctx.destination); osc.start(now); osc.stop(now + 0.08);
+        } else if (type === 'powerup') {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+          gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+          osc.connect(gain); gain.connect(ctx.destination); osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'victory') {
+          const notes = [261.63, 329.63, 392, 523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+            gain.gain.setValueAtTime(0.1, now + idx * 0.08); gain.gain.exponentialRampToValueAtTime(0.005, now + idx * 0.08 + 0.3);
+            osc.connect(gain); gain.connect(ctx.destination); osc.start(now + idx * 0.08); osc.stop(now + idx * 0.08 + 0.3);
+          });
+        }
+      } catch (e) {
+        console.warn("Audio Context blocked until interaction.", e);
+      }
+    }
+
+    // --- SYSTEM ICON COMPONENT ---
+    const Icon = ({ name, className = "w-5 h-5", ...props }) => {
+      const kebab = name ? name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase() : "code";
+      useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+      return <i data-lucide={kebab} className={className} {...props}></i>;
+    };
+
+    // --- DATA: LESSONS ---
+    const LESSONS_DATA = [
+      {
+        id: 'ini-variables', title: 'Variáveis & Saída', difficulty: 'Iniciante', icon: 'CornerDownRight', color: 'emerald',
+        description: 'Aprenda a guardar informações em caixas (variáveis) e mostrar mensagens na tela.',
+        questions: [
+          { id: 'ini-q1', type: 'multiple-choice', instruction: 'Em JavaScript, qual palavra-chave declaramos uma variável cujo valor PODE ser alterado?', options: ['const', 'let', 'var_mudar', 'fixed'], correctAnswer: 'let', explanation: 'A palavra-chave let permite criar variáveis reatribuíveis. const é para constantes fixas.', xpReward: 15 },
+          { id: 'ini-q2', type: 'fill-blank', instruction: 'Complete o código para mostrar a mensagem "Sucesso!" no console.', codeContext: '_______.log("Sucesso!");', correctAnswer: 'console', blankTextBefore: '', blankTextAfter: '.log("Sucesso!");', explanation: 'Usamos console.log() para imprimir dados e depurar na tela.', xpReward: 15 },
+          { id: 'ini-q3', type: 'block-order', instruction: 'Ordene as linhas para criar a variável nome com valor "Alice" e mostrá-la.', blocks: ['console.log(nome);', 'let nome = "Alice";'], correctBlocks: ['let nome = "Alice";', 'console.log(nome);'], explanation: 'Primeiro criamos a variável para depois mostrá-la.', xpReward: 20 },
+          { id: 'ini-q4', type: 'bug-hunt', instruction: 'Encontre a linha com erro de sintaxe. (Dica: falta fechar algo?)', buggyCode: ['let saudacao = "Olá, Dev";', 'let idade = 25;', 'console.log(saudacao + idade;', 'let ativo = true;'], correctLineIndex: 2, explanation: 'Falta o parêntese de fechamento em console.log().', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'ini-operations', title: 'Operações e Texto', difficulty: 'Iniciante', icon: 'Plus', color: 'sky',
+        description: 'Descubra como somar números e juntar textos (concatenação) no seu código.',
+        questions: [
+          { id: 'ini-op-q1', type: 'multiple-choice', instruction: 'Se ligarmos um texto "2" com outro texto "3" usando o operador de adição (+), qual será o resultado?', options: ['5 (Número)', '"23" (Texto concateado)', 'Erro de Sistema', 'NaN'], correctAnswer: '"23" (Texto concateado)', explanation: 'Quando um dos lados é texto, o JS faz concatenação (junta os textos).', xpReward: 15 },
+          { id: 'ini-op-q2', type: 'fill-blank', instruction: 'Qual operador calcula o RESTO de uma divisão em JavaScript?', codeContext: 'let resto = 5 ___ 2; // Espera-se 1', correctAnswer: '%', blankTextBefore: 'let resto = 5 ', blankTextAfter: ' 2; // Espera-se 1', explanation: 'O operador de módulo % calcula o resto da divisão.', xpReward: 15 },
+          { id: 'ini-op-q3', type: 'block-order', instruction: 'Monte o código para calcular o preço final com produto = 50 e taxa = 7.', blocks: ['let precoProduto = 50;', 'console.log(precoFinal);', 'let precoFinal = precoProduto + taxa;', 'let taxa = 7;'], correctBlocks: ['let precoProduto = 50;', 'let taxa = 7;', 'let precoFinal = precoProduto + taxa;', 'console.log(precoFinal);'], explanation: 'Primeiro declaramos os dados, depois somamos e finalmente exibimos.', xpReward: 20 }
+        ]
+      },
+      {
+        id: 'ini-conditions', title: 'Decisões no Código (if/else)', difficulty: 'Iniciante', icon: 'GitFork', color: 'violet',
+        description: 'Faça seu programa tomar decisões inteligentes baseando-se em condições.',
+        questions: [
+          { id: 'ini-cond-q1', type: 'multiple-choice', instruction: 'Qual estrutura executa um bloco APENAS se certas condições forem atendidas?', options: ['while', 'for', 'if', 'repeat'], correctAnswer: 'if', explanation: 'O "if" verifica se a condição é verdadeira antes de rodar o bloco interno.', xpReward: 15 },
+          { id: 'ini-cond-q2', type: 'fill-blank', instruction: 'Complete o teste para ativar se a idade for maior de 18.', codeContext: 'if (idade ___ 18) { liberar(); }', correctAnswer: '>', blankTextBefore: 'if (idade ', blankTextAfter: ' 18) { liberar(); }', explanation: 'Usamos o operador maior que (>) para comparar números.', xpReward: 20 },
+          { id: 'ini-cond-q3', type: 'bug-hunt', instruction: 'No verificador de par, clique na linha com erro causal:', buggyCode: ['let num = 10;', 'if (num % 2 = 0) {', '  console.log("É par!");', '}'], correctLineIndex: 1, explanation: 'Para comparação de igualdade usamos === ou ==, o operador simples = atribui valor.', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'med-arrays', title: 'Listas e Coleções (Arrays)', difficulty: 'Médio', icon: 'List', color: 'amber',
+        description: 'Aprenda a agrupar múltiplos elementos ordenados em uma única lista.',
+        questions: [
+          { id: 'med-arr-q1', type: 'multiple-choice', instruction: 'Qual é o índice do PRIMEIRO elemento de uma lista em javascript?', options: ['1', '0', '-1', 'Primeiro'], correctAnswer: '0', explanation: 'Listas e Arrays começam com índice 0 em JavaScript.', xpReward: 20 },
+          { id: 'med-arr-q2', type: 'fill-blank', instruction: 'Como decifrar o tamanho total de itens de um array chamado "numeros"?', codeContext: 'let total = numeros._______;', correctAnswer: 'length', blankTextBefore: 'let total = numeros.', blankTextAfter: ';', explanation: 'A propriedade ".length" retorna a extensão do array.', xpReward: 20 },
+          { id: 'med-arr-q3', type: 'block-order', instruction: 'Adicione "Python" no final da lista de linguagens já existente:', blocks: ['linguagens.push("Python");', 'let linguagens = ["JS", "HTML"];', 'console.log(linguagens);'], correctBlocks: ['let linguagens = ["JS", "HTML"];', 'linguagens.push("Python");', 'console.log(linguagens);'], explanation: 'Criamos o array, chamamos .push() para acrescentar e mostramos.', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'med-loops', title: 'Loops de Repetição', difficulty: 'Médio', icon: 'RotateCcw', color: 'pink',
+        description: 'Automatize tarefas repetitivas criando contadores e loops estruturados.',
+        questions: [
+          { id: 'med-loo-q1', type: 'multiple-choice', instruction: 'O que acontece se a condição de um loop nunca se tornar falsa?', options: ['Pula automático', 'Loop infinito, travando a página', 'Dorme 5 segundos', 'Roda exatamente 100 vezes'], correctAnswer: 'Loop infinito, travando a página', explanation: 'O browser trava se o loop continuar repetindo eternamente sem parar.', xpReward: 20 },
+          { id: 'med-loo-q2', type: 'fill-blank', instruction: 'Complete o contador tradicional incremental de 1 em 1:', codeContext: 'for (let i = 0; i < 10; i___) { }', correctAnswer: '++', blankTextBefore: 'for (let i = 0; i < 10; i', blankTextAfter: ') { }', explanation: 'O operador ++ acrescenta 1 à variável numérica.', xpReward: 20 },
+          { id: 'med-loo-q3', type: 'bug-hunt', instruction: 'Clique na linha que causa erro crítico. Você pode reatribuir constantes (const)?', buggyCode: ['const contador = 0;', 'while (contador < 5) {', '  console.log(contador);', '  contador += 1;', '}'], correctLineIndex: 3, explanation: 'Uma constante (const) não pode ser reatribuída. Use let contador para mutabilidade.', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'med-functions', title: 'Mestre das Funções', difficulty: 'Médio', icon: 'Cpu', color: 'orange',
+        description: 'Escreva trechos de códigos reutilizáveis, receba parâmetros e retorne valores.',
+        questions: [
+          { id: 'med-fun-q1', type: 'multiple-choice', instruction: 'Qual palavra-chave envia um valor de volta para quem chamou a função?', options: ['send', 'return', 'export', 'give'], correctAnswer: 'return', explanation: 'O comando return encerra a função e retorna o resultado.', xpReward: 20 },
+          { id: 'med-fun-q2', type: 'fill-blank', instruction: 'Complete o operador de Arrow Function compacta:', codeContext: 'const dobro = (x) ___ x * 2;', correctAnswer: '=>', blankTextBefore: 'const dobro = (x) ', blankTextAfter: ' x * 2;', explanation: 'O operador => define uma arrow function compacta no ES6.', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'pro-async', title: 'Assincronismo & Promises', difficulty: 'Profissional', icon: 'Zap', color: 'rose',
+        description: 'Entenda como o JavaScript gerencia requisições de rede com async/await.',
+        questions: [
+          { id: 'pro-async-q1', type: 'multiple-choice', instruction: 'O que representa uma "Promise" no JavaScript?', options: ['Contrato de cancelamento', 'Objeto representando o sucesso/falha de uma operação remota', 'Conversor de imagem', 'Framework substituto'], correctAnswer: 'Objeto representando o sucesso/falha de uma operação remota', explanation: 'A Promise representa um processo em andamento que resolverá no futuro.', xpReward: 25 },
+          { id: 'pro-async-q2', type: 'fill-blank', instruction: 'Marque a função externa para liberar o uso estratégico do "await":', codeContext: '_______ function api() { let r = await fetch(u); }', correctAnswer: 'async', blankTextBefore: '', blankTextAfter: ' function api() { let r = await fetch(u); }', explanation: 'O uso de await exige o prefixo async na declaração da função.', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'pro-methods', title: 'Métodos de Array', difficulty: 'Profissional', icon: 'Workflow', color: 'indigo',
+        description: 'Faça manipulações de arrays funcionais e limpas: map, filter e reduce.',
+        questions: [
+          { id: 'pro-met-q1', type: 'multiple-choice', instruction: 'Qual método de Array gera uma nova lista com itens filtrados por um teste?', options: ['map', 'filter', 'reduce', 'forEach'], correctAnswer: 'filter', explanation: '.filter() gera um novo array com itens que retornam verdadeiro.', xpReward: 25 },
+          { id: 'pro-met-q2', type: 'fill-blank', instruction: 'Multiplique por 2 todos os termos do array de forma simples:', codeContext: 'let dobros = numeros._______(x => x * 2);', correctAnswer: 'map', blankTextBefore: 'let dobros = numeros.', blankTextAfter: '(x => x * 2);', explanation: '.map() cria um novo array transformando cada elemento individualmente.', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'ini-datatypes', title: 'Tipos de Dados Dinâmicos', difficulty: 'Iniciante', icon: 'CornerDownRight', color: 'emerald',
+        description: 'Explore tipos primitivos: strings, numbers, booleans, undefined e null.',
+        questions: [
+          { id: 'ini-data-q1', type: 'multiple-choice', instruction: 'Qual tipo de dado é reservado para variáveis sem nenhum valor atribuído?', options: ['null', 'undefined', 'boolean', 'NaN'], correctAnswer: 'undefined', explanation: 'Uma variável declarada sem valor é implicitamente undefined.', xpReward: 15 },
+          { id: 'ini-data-q2', type: 'fill-blank', instruction: 'Complete para verificar estritamente o tipo de dado em JS:', codeContext: 'let tipo = _______ "Olá";', correctAnswer: 'typeof', blankTextBefore: 'let tipo = ', blankTextAfter: ' "Olá";', explanation: 'typeof inspeciona o tipo de dado que a variável armazena.', xpReward: 20 }
+        ]
+      },
+      {
+        id: 'med-objects', title: 'Objetos e Dicionários', difficulty: 'Médio', icon: 'Cpu', color: 'amber',
+        description: 'Armazene dados complexos indexados por chaves e valores.',
+        questions: [
+          { id: 'med-obj-q1', type: 'multiple-choice', instruction: 'Como acessar a chave nome de usuario = { nome: "Ana" }?', options: ['usuario["nome"] ou usuario.nome', 'usuario->nome', 'usuario.get(nome)', 'nome(usuario)'], correctAnswer: 'usuario["nome"] ou usuario.nome', explanation: 'Acessamos via ponto (.) ou colchetes [string].', xpReward: 20 },
+          { id: 'med-obj-q2', type: 'fill-blank', instruction: 'Como obter todas as chaves de um objeto "carro"?', codeContext: 'let chaves = Object._______(carro);', correctAnswer: 'keys', blankTextBefore: 'let chaves = Object.', blankTextAfter: '(carro);', explanation: 'Object.keys() retorna um array contendo os nomes das chaves.', xpReward: 25 }
+        ]
+      },
+      {
+        id: 'pro-destructuring', title: 'Desestruturação & Spread', difficulty: 'Profissional', icon: 'Workflow', color: 'rose',
+        description: 'Destaque-se utilizando desestruturação rápida e operador de espalhamento (...).',
+        questions: [
+          { id: 'pro-dest-q1', type: 'multiple-choice', instruction: 'O que o operador spread (...) faz no array [...lista, 4]?', options: ['Multiplica os itens', 'Limpa o array', 'Gera uma cópia rasa adicionando o 4 no final', 'Inverte a ordem'], correctAnswer: 'Gera uma cópia rasa adicionando o 4 no final', explanation: 'O spread espalha os elementos existentes dentro da nova estrutura.', xpReward: 25 },
+          { id: 'pro-dest-q2', type: 'fill-blank', instruction: 'Desestruture o atributo modelo diretamente do objeto:', codeContext: 'const { _______ } = { modelo: "Tesla" };', correctAnswer: 'modelo', blankTextBefore: 'const { ', blankTextAfter: ' } = { modelo: "Tesla" };', explanation: 'Chaves combinando com propriedades extraem o valor como variável.', xpReward: 25 }
+        ]
+      }
+    ];
+
+    const GOLDEN_TIPS = [
+      { title: "Por que as listas começam em 0?", category: "História", content: "Antigamente, em C, o índice era o deslocamento do endereço físico na memória. Na primeira gaveta, o deslocamento é exatamente zero!", icon: "📜" },
+      { title: "Estrito (===) vs Solto (==)", category: "Sintaxe", content: "Use sempre o comparador === no JavaScript. Ele avalia o valor E o tipo do dado com segurança, evitando coações automáticas bizarras.", icon: "🔍" },
+      { title: "O Padrão DRY ('Don't Repeat Yourself')", category: "Boas Práticas", content: "Não repita código. Se copiar lógica idêntica mais de duas vezes, empacote-a em uma função limpa externa reutilizável.", icon: "⚡" },
+      { title: "De onde surgiu a palavra 'Bug'?", category: "Curiosidade", content: "A brilhante Grace Hopper removeu uma mariposa de verdade de uma máquina valvulada em 1947, batizando a limpeza de 'debugging'!", icon: "🦋" },
+      { title: "Deixe tudo com const por padrão", category: "Sintaxe", content: "Sempre crie variáveis usando 'const'. Mude para 'let' apenas se souber que ela sofrerá reatribuições ou incrementos diretos.", icon: "🔒" }
+    ];
+
+    const SHOWN_TERMS = [
+      { term: 'const / let', category: 'Iniciante', translation: 'Definição de Variáveis', explanation: 'Palavras-chave em JavaScript para guardar dados. Use "let" se os dados forem mudar (ex: pontos) e "const" para valores estáveis.', codeExample: 'let score = 100;\nconst pi = 3.14;' },
+      { term: 'console.log()', category: 'Iniciante', translation: 'Imprimir no Console', explanation: 'Função integrada para debugar informações e inspecionar variáveis na aba secreta de desenvolvimento do browser.', codeExample: 'console.log("Variável carregada!");' },
+      { term: 'if / else', category: 'Iniciante', translation: 'Decisões Lógicas', explanation: 'Se o teste for verdadeiro, faz o bloco do if. Senão, se move direto para o escopo alternativo do else.', codeExample: 'if (vidas > 0) {\n  next();\n} else {\n  gameOver();\n}' },
+      { term: 'Arrays (Listas)', category: 'Médio', translation: 'Vetores Práticos', explanation: 'Uma caixa de divisões numeradas para carregar termos em ordem literal. O primeiro item mora na posição zero.', codeExample: 'let times = ["Vasco", "Bahia"];' },
+      { term: 'Promises (Promessas)', category: 'Profissional', translation: 'Fluxos Assíncronos', explanation: 'Representações de processos que serão concluídos no futuro (como busca de dados em servidores ou download de arquivos).', codeExample: 'fetch(url).then(r => r.json());' },
+      { term: 'async / await', category: 'Profissional', translation: 'Organização Assíncrona', explanation: 'Instruções modernas do ES8 que organizam a espera de dados de servidores sem travar as interações da página no browser.', codeExample: 'async function buscar() {\n  let r = await fetch(api);\n}' },
+      { term: 'TypeScript', category: 'Profissional', translation: 'Tipagem Estática', explanation: 'Superconjunto que adiciona anotações de dados robustas no JavaScript, pegando falhas bobas antes de colocá-lo para rodar.', codeExample: 'let id: number = 29;' }
+    ];
+
+    const TRAILS_CONFIG = [
+      { id: 'cert-iniciante', title: 'Diploma de Nível Iniciante', difficulty: 'Iniciante', modulesCount: 4, minGrade: 7, seal: '🌱', themeColor: 'from-emerald-400 to-teal-500', borderColor: 'border-emerald-200' },
+      { id: 'cert-medio', title: 'Diploma de Nível Intermediário', difficulty: 'Médio', modulesCount: 3, minGrade: 7, seal: '⚡', themeColor: 'from-blue-500 to-indigo-600', borderColor: 'border-blue-200' },
+      { id: 'cert-profissional', title: 'Diploma de Nível Profissional', difficulty: 'Profissional', modulesCount: 3, minGrade: 7, seal: '👑', themeColor: 'from-purple-500 to-violet-600', borderColor: 'border-purple-200' }
+    ];
+
+    const LOCAL_STORAGE_KEY = 'bytequest_game_progress_v3';
+    const getInitialProgress = () => ({
+      xp: 0, hearts: 5, streak: 0, streakShields: 0, completedModules: [],
+      unlockedDifficulties: ['Iniciante'], gems: 0, activeTheme: 'default',
+      purchasedThemes: ['default'], moduleProgress: {}, moduleGrades: {},
+      certificates: [], lastHeartsUpdateTime: undefined
+    });
+
+    // --- SUBCOMPONENT: TYPEWRITER TEXT ---
+    function TypingText({ text, speed = 15 }) {
+      const [displayed, setDisplayed] = useState("");
+      useEffect(() => {
+        setDisplayed(""); let index = 0;
+        const interval = setInterval(() => {
+          setDisplayed(() => {
+            const next = text.slice(0, index + 1); index++;
+            if (index >= text.length) clearInterval(interval);
+            return next;
+          });
+        }, speed);
+        return () => clearInterval(interval);
+      }, [text, speed]);
+      return <span>{displayed}{displayed.length < text.length && <span className="inline-block w-1.5 h-3.5 bg-amber-500 animate-pulse" />}</span>;
+    }
+
+    // --- SIDEBAR NAVIGATION ---
+    function Sidebar({ activeTab, setActiveTab, stats, onRefill }) {
+      const [timer, setTimer] = useState("");
+      useEffect(() => {
+        if (stats.hearts >= 5 || !stats.lastHeartsUpdateTime) { setTimer(""); return; }
+        const update = () => {
+          const diff = (stats.lastHeartsUpdateTime + 3600000) - Date.now();
+          if (diff <= 0) setTimer("Recarregando...");
+          else {
+            const m = Math.floor(diff / 60000); const s = Math.floor((diff % 60000) / 1000);
+            setTimer(`${m}:${s < 10 ? '0' : ''}${s}`);
+          }
+        };
+        update(); const int = setInterval(update, 1000); return () => clearInterval(int);
+      }, [stats.hearts, stats.lastHeartsUpdateTime]);
+
+      return (
+        <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between p-4 md:h-screen sticky top-0 z-40">
+          <div>
+            <div className="flex items-center gap-3 px-2 py-3 mb-6">
+              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-emerald-500/20">💻</div>
+              <div>
+                <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">ByteQuest</h1>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase">APRENDA GRÁTIS</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-3 mb-6 border border-slate-150 flex flex-wrap gap-4 justify-around md:grid md:grid-cols-2 md:gap-3">
+              <div className="flex items-center gap-2"><span>⭐</span><div><p className="text-[10px] text-slate-400 font-bold">XP</p><p className="text-xs font-bold">{stats.xp}</p></div></div>
+              <div className="flex items-center gap-2"><Icon name="Flame" className="w-4 h-4 text-orange-500" /><div><p className="text-[10px] text-slate-400 font-bold">Ofensiva</p><p className="text-xs font-bold">{stats.streak} d</p></div></div>
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => { playSound('click'); setActiveTab('loja'); }}>
+                <Icon name="Heart" className={`w-4 h-4 ${stats.hearts > 0 ? 'text-red-500 fill-red-500' : 'text-slate-350'}`} />
+                <div><p className="text-[10px] text-slate-400 font-bold">Vidas</p><p className="text-xs font-bold">{stats.hearts}/5</p>{timer && <span className="text-[8px] text-amber-600 font-bold block whitespace-nowrap">⏱️ {timer}</span>}</div>
+              </div>
+              <div className="flex items-center gap-2"><span>💎</span><div><p className="text-[10px] text-slate-400 font-bold">Gemas</p><p className="text-xs font-bold">{stats.gems}</p></div></div>
+            </div>
+
+            <nav className="space-y-1.5">
+              {[
+                { id: 'trilhas', label: 'Trilhas de Estudo', icon: 'Terminal' },
+                { id: 'dicionario', label: 'Dicionário Dev', icon: 'BookOpen' },
+                { id: 'loja', label: 'Loja de Gemas', icon: 'ShoppingBag' },
+                { id: 'conquistas', label: 'Conquistas', icon: 'Award' }
+              ].map(item => (
+                <button
+                  key={item.id} onClick={() => { playSound('click'); setActiveTab(item.id); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                    activeTab === item.id ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Icon name={item.icon} className="w-5 h-5" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+          <div className="hidden md:block bg-gradient-to-br from-slate-50 to-emerald-50 border border-emerald-100 rounded-2xl p-4 mt-auto">
+            <h4 className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 uppercase mb-1"><Icon name="Sparkles" className="w-3.5 h-3.5 text-emerald-600" />Dica Rápida</h4>
+            <p className="text-[11px] text-slate-600 leading-relaxed">Não tente decorar comandos bizarros de cabeça, foque em sedimentar a lógica.</p>
+          </div>
+        </aside>
+      );
+    }
+
+    // --- DASHBOARD CONTAINER SCREEN ---
+    function Dashboard({ progress, onStartLesson, selectedDifficulty, setSelectedDifficulty }) {
+      const [selectedModule, setSelectedModule] = useState(null);
+      const modules = LESSONS_DATA.filter(m => m.difficulty === selectedDifficulty);
+      const completedCount = LESSONS_DATA.filter(m => m.difficulty === selectedDifficulty && progress.completedModules.includes(m.id)).length;
+      const progressPercent = modules.length > 0 ? Math.round((completedCount / modules.length) * 100) : 0;
+
+      const dailyTip = GOLDEN_TIPS[new Date().getDate() % GOLDEN_TIPS.length];
+
+      return (
+        <div className="flex-1 p-6 max-w-4xl mx-auto animate-fade-in">
+          {/* Difficulty filter */}
+          <div className="bg-slate-100 p-1 rounded-2xl flex gap-1 mb-8">
+            {['Iniciante', 'Médio', 'Profissional'].map(diff => (
+              <button
+                key={diff} onClick={() => { playSound('click'); setSelectedDifficulty(diff); setSelectedModule(null); }}
+                className={`flex-1 py-2.5 text-xs font-black uppercase rounded-xl transition duration-155 ${
+                  selectedDifficulty === diff ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                {diff === 'Iniciante' && '🟢 '}
+                {diff === 'Médio' && '🟡 '}
+                {diff === 'Profissional' && '🔥 '}
+                {diff}
+              </button>
+            ))}
+          </div>
+
+          {/* Intro block */}
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl p-6 text-white mb-8 shadow-sm relative overflow-hidden">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <span className="text-[10px] font-black uppercase bg-white/20 px-3 py-1 rounded-full text-white">Nível {selectedDifficulty}</span>
+                <h2 className="text-xl font-black mt-2 leading-tight">
+                  {selectedDifficulty === 'Iniciante' && 'Fundamentos Lógicos e Algoritmos'}
+                  {selectedDifficulty === 'Médio' && 'Coleções Estruturadas & Modularidade'}
+                  {selectedDifficulty === 'Profissional' && 'Operações Remotas Síncronas/Assíncronas'}
+                </h2>
+              </div>
+              <span className="text-3xl">🎯</span>
+            </div>
+            <p className="text-emerald-50 text-xs mb-6 max-w-md leading-relaxed">Aprimore sua proficiência. Estude os blocos ao seu próprio ritmo.</p>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-[11px] font-bold text-emerald-100">
+                <span>Evolução da Trilha: {completedCount} de {modules.length} feitos</span>
+                <span>{progressPercent}%</span>
+              </div>
+              <div className="w-full bg-emerald-700/50 h-2.5 rounded-full overflow-hidden">
+                <div className="bg-white h-full" style={{ width: `${progressPercent}%` }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Golden tips */}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-8 flex items-center gap-4">
+            <span className="text-2xl animate-bounce shrink-0">{dailyTip.icon}</span>
+            <div>
+              <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-100 border border-amber-200/50 px-2 py-0.5 rounded-full">💡 {dailyTip.category}</span>
+              <h4 className="text-xs font-bold text-slate-800 leading-tight mt-1">{dailyTip.title}</h4>
+              <p className="text-xs text-slate-500 mt-1"><TypingText text={dailyTip.content} /></p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 leading-relaxed">
+            {/* Left list */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider px-1">Desafios Práticos</h3>
+              {modules.map(mod => {
+                const complete = progress.completedModules.includes(mod.id);
+                const selected = selectedModule?.id === mod.id;
+                const percent = progress.moduleProgress?.[mod.id] || (complete ? 100 : 0);
+                return (
+                  <div
+                    key={mod.id} onClick={() => { playSound('click'); setSelectedModule(mod); }}
+                    className={`p-4 rounded-2xl border cursor-pointer transition ${
+                      selected ? 'border-semibold border-slate-900 bg-slate-50' : complete ? 'border-emerald-100 bg-white' : 'border-slate-200 hover:border-slate-350 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-base ${complete ? 'bg-emerald-500' : 'bg-slate-400'}`}>
+                          {complete ? '✓' : <Icon name={mod.icon} className="w-5 h-5 text-white" />}
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-sm text-slate-800 leading-tight">{mod.title}</h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{mod.questions.length} exercícios em progresso</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {complete && progress.moduleGrades?.[mod.id] !== undefined && (
+                          <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">Nota {progress.moduleGrades[mod.id].toFixed(1)}</span>
+                        )}
+                        <Icon name="ChevronRight" className="w-4 h-4 text-slate-400" />
+                      </div>
+                    </div>
+                    {percent > 0 && (
+                      <div className="w-full bg-slate-100 h-1 rounded-full mt-3 overflow-hidden">
+                        <div className={`h-full ${complete ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${percent}%` }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Right card details */}
+            <div>
+              {selectedModule ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm sticky top-6 animate-fade-in text-center md:text-left">
+                  <span className="text-[9px] font-black uppercase text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">Trilha {selectedModule.difficulty}</span>
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight mt-3">{selectedModule.title}</h3>
+                  <p className="text-xs text-slate-500 my-4 leading-relaxed">{selectedModule.description}</p>
+                  
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 text-left">
+                    <p className="text-[10px] font-black uppercase text-slate-450 tracking-wider mb-2">Habilidades Trabalhadas:</p>
+                    <ul className="text-xs text-slate-600 space-y-1.5">
+                      <li>✅ Raciocínio sob pressão de erros sequenciais</li>
+                      <li>✅ Familiaridade de sintaxe real JavaScript</li>
+                      <li>✅ Solução de bugs estruturais comuns</li>
+                    </ul>
+                  </div>
+
+                  <button
+                    onClick={() => { playSound('powerup'); onStartLesson(selectedModule); }}
+                    disabled={progress.hearts <= 0}
+                    className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white font-extrabold text-sm rounded-xl select-none flex items-center justify-center gap-2 transition"
+                  >
+                    {progress.hearts <= 0 ? 'Recarregue suas Vidas' : `Começar Desafio (+${selectedModule.questions.length * 10} XP)`}
+                  </button>
+                  {progress.hearts <= 0 && (
+                    <p className="text-[10px] text-red-500 font-bold mt-2 text-center">Energia esgotada! Compre uma recarga na Loja por 💎 20.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center h-80 sticky top-6">
+                  <span className="text-3xl mb-4">🤖</span>
+                  <h4 className="font-extrabold text-slate-705 text-xs mb-1">Selecione uma aventura</h4>
+                  <p className="text-[11px] text-slate-400 max-w-[200px] leading-relaxed">Clique em qualquer módulo listado ao lado para visualizar os detalhes.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- GLOSSARY DICTIONARY ---
+    function Glossary() {
+      const [search, setSearch] = useState("");
+      const [filter, setFilter] = useState("Todos");
+
+      const filtered = SHOWN_TERMS.filter(item => {
+        const matchText = item.term.toLowerCase().includes(search.toLowerCase()) || item.translation.toLowerCase().includes(search.toLowerCase()) || item.explanation.toLowerCase().includes(search.toLowerCase());
+        const matchFilter = filter === 'Todos' || item.category === filter;
+        return matchText && matchFilter;
+      });
+
+      return (
+        <div className="flex-1 p-6 max-w-4xl mx-auto animate-fade-in">
+          <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
+            <div>
+              <h2 className="text-xl font-black text-slate-800">Dicionário do Desenvolvedor</h2>
+              <p className="text-xs text-slate-400">Consulte conceitos essenciais a qualquer momento.</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-3 mb-6 flex flex-wrap gap-4 items-center justify-between">
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Filtre termos rapidamente..."
+              className="px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500"
+            />
+            <div className="flex gap-1">
+              {['Todos', 'Iniciante', 'Médio', 'Profissional'].map(c => (
+                <button
+                  key={c} onClick={() => { playSound('click'); setFilter(c); }}
+                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition ${
+                    filter === c ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            {filtered.map((item, idx) => (
+              <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-xs transition flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[8px] font-black uppercase text-slate-450 tracking-wider bg-slate-100 rounded px-1.5 py-0.5">{item.category}</span>
+                    <span className="text-[10px] text-slate-400 font-mono italic">{item.translation}</span>
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-800 font-mono mb-2">{item.term}</h4>
+                  <p className="text-xs text-slate-500 mb-4">{item.explanation}</p>
+                </div>
+                <div className="bg-slate-900 rounded-xl p-3 font-mono text-[10px] text-emerald-400 relative">
+                  <pre className="overflow-x-auto whitespace-pre-wrap">{item.codeExample}</pre>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // --- GEM SHOP RESOURCE MANAGER ---
+    function Shop({ gems, hearts, streakShields, activeTheme, purchasedThemes, lastHeartsUpdateTime, onRefill, onBuyTheme, onSelectTheme, onBuyShield }) {
+      const [timer, setTimer] = useState("");
+      useEffect(() => {
+        if (hearts >= 5 || !lastHeartsUpdateTime) { setTimer(""); return; }
+        const update = () => {
+          const diff = (lastHeartsUpdateTime + 3600000) - Date.now();
+          if (diff <= 0) setTimer("");
+          else {
+            const m = Math.floor(diff / 60000); const s = Math.floor((diff % 60000) / 1000);
+            setTimer(`${m}:${s < 10 ? '0' : ''}${s}`);
+          }
+        };
+        update(); const int = setInterval(update, 1000); return () => clearInterval(int);
+      }, [hearts, lastHeartsUpdateTime]);
+
+      return (
+        <div className="flex-1 p-6 max-w-4xl mx-auto animate-fade-in">
+          <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-xl font-black text-slate-800">Loja de Recursos</h2>
+              <p className="text-xs text-slate-400">Torne sua trilha mais protegida utilizando seu saldo de gemas.</p>
+            </div>
+            <div className="bg-amber-50 px-4 py-2 border border-amber-200 rounded-xl flex items-center gap-1.5">
+              <span>💎</span><span className="font-mono font-black text-sm text-slate-800">{gems}</span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Left consumables */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider pl-1">Itens de Utilidade</h4>
+              
+              {/* Heart filler */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex justify-between items-center">
+                <div className="flex gap-3">
+                  <span className="text-3xl">❤️</span>
+                  <div>
+                    <h5 className="font-extrabold text-slate-800 text-xs">Corações Totalmente Cheios</h5>
+                    <p className="text-[11px] text-slate-400">Enche seus 5 corações na hora para jogar sem travar.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={onRefill} disabled={hearts >= 5 || gems < 20}
+                  className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-black rounded-lg transition"
+                >
+                  💎 20
+                </button>
+              </div>
+
+              {/* Shield */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex justify-between items-center">
+                <div className="flex gap-3">
+                  <span className="text-3xl">🛡️</span>
+                  <div>
+                    <h5 className="font-extrabold text-slate-800 text-xs">Amuleto de Ofensiva diária</h5>
+                    <p className="text-[11px] text-slate-400">Evita que sua ofensiva se quebre se errar tudo em uma lição.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { if (gems >= 30) onBuyShield(30); else alert("Gemas insuficientes."); }}
+                  className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black rounded-lg transition"
+                >
+                  💎 30
+                </button>
+              </div>
+            </div>
+
+            {/* Right themes */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider pl-1">Layout Code Editor</h4>
+              {[
+                { id: 'default', label: 'Verde Padrão ByteQuest', price: 0, desc: 'Tema limpo clássico do sistema.', style: 'bg-emerald-500' },
+                { id: 'vscode', label: 'VS Code Studio Blue', price: 40, desc: 'Inspirado no azul profundo habitual de desenvolvedores.', style: 'bg-sky-900 border-sky-400' },
+                { id: 'dracula', label: 'Dracula Vampiro Neon', price: 50, desc: 'Violeta gótico de alta visibilidade estética.', style: 'bg-indigo-900 border-pink-400' },
+                { id: 'matrix', label: 'Matrix Terminal Hacker', price: 70, desc: 'Preto puro estilo anos 90 com hacker verde.', style: 'bg-black border-green-500' }
+              ].map(t => {
+                const owned = purchasedThemes.includes(t.id);
+                const active = activeTheme === t.id;
+                return (
+                  <div key={t.id} className="bg-white border border-slate-200 rounded-xl p-4 flex justify-between items-center">
+                    <div className="flex gap-3 items-center">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${t.style}`}>🎨</div>
+                      <div>
+                        <h5 className="font-extrabold text-slate-800 text-xs leading-none">{t.label}</h5>
+                        <p className="text-[10px] text-slate-400 mt-1">{t.desc}</p>
+                      </div>
+                    </div>
+                    {active ? (
+                      <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full">ATIVO</span>
+                    ) : owned ? (
+                      <button onClick={() => onSelectTheme(t.id)} className="text-[10px] bg-slate-150 hover:bg-slate-200 px-3 py-1 rounded-full font-bold">USAR</button>
+                    ) : (
+                      <button
+                        onClick={() => { if (gems >= t.price) onBuyTheme(t.id, t.price); else alert("Saldo insuficiente."); }}
+                        className="text-[10px] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1 rounded-full font-black whitespace-nowrap"
+                      >
+                        💎 {t.price}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- ACHIEVEMENTS & CERTIFICATE INVENTORY ---
+    function Achievements({ progress, onUpdateProgress }) {
+      const [tab, setTab] = useState("badges");
+      const [claimId, setClaimId] = useState(null);
+      const [nameInput, setNameInput] = useState("");
+      const [viewingCert, setViewingCert] = useState(null);
+
+      const items = [
+        { id: 'first-step', title: 'Iniciando Motores', desc: 'Concluiu seu primeiro desafio lógico de programação.', criteria: '1 módulo concluído', badge: '🚀', current: progress.completedModules.length >= 1 },
+        { id: 'gem-hoarder', title: 'Burguês do Código', desc: 'Seu cofre possui 50 ou mais gemas valiosas.', criteria: 'Ter 50 gemas', badge: '💎', current: progress.gems >= 50 },
+        { id: 'streak-master', title: 'Dev Disciplinado', desc: 'Manteve sua ofensiva histórica ativa diariamente.', criteria: 'Ofensiva ativa', badge: '🔥', current: progress.streak > 0 },
+        { id: 'complete-master', title: 'Completador Pró', desc: 'Terminou com sucesso 3 ou mais módulos teóricos.', criteria: '3 módulos feitos', badge: '🏆', current: progress.completedModules.length >= 3 }
+      ];
+
+      const computedCertificates = TRAILS_CONFIG.map(trail => {
+        const listTrail = LESSONS_DATA.filter(m => m.difficulty === trail.difficulty);
+        const doneList = listTrail.filter(m => progress.completedModules.includes(m.id));
+        const pct = listTrail.length > 0 ? Math.round((doneList.length / listTrail.length) * 100) : 0;
+        
+        const sumGrades = listTrail.map(m => progress.moduleGrades?.[m.id] || 0).reduce((a, b) => a + b, 0);
+        const avg = listTrail.length > 0 ? parseFloat((sumGrades / listTrail.length).toFixed(1)) : 0.0;
+        
+        const elegivel = pct === 100 && avg >= trail.minGrade;
+        const claimed = (progress.certificates || []).some(c => c.id === trail.id);
+        const claimedData = (progress.certificates || []).find(c => c.id === trail.id);
+
+        return { ...trail, percentage: pct, average: avg, isEligible: elegivel, isClaimed: claimed, data: claimedData, doneCount: doneList.length, totalCount: listTrail.length };
+      });
+
+      const handleResgate = (trailId, avg, pct) => {
+        if (!nameInput.trim()) { alert("Digite seu nome completo!"); return; }
+        const trail = TRAILS_CONFIG.find(t => t.id === trailId);
+        playSound('powerup');
+        const cert = { id: trail.id, title: trail.title, difficulty: trail.difficulty, recipientName: nameInput.trim(), issueDate: new Date().toLocaleDateString('pt-BR'), averageGrade: avg, percentageCompleted: pct };
+        const list = [...(progress.certificates || []), cert];
+        onUpdateProgress({ ...progress, certificates: list });
+        setClaimId(null); setNameInput(""); setViewingCert(cert);
+      };
+
+      return (
+        <div className="flex-1 p-6 max-w-4xl mx-auto animate-fade-in">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-xl font-black text-slate-800">Conquistas & Registros</h2>
+              <p className="text-xs text-slate-400">Visualize seus selos de prestígio acadêmico ou resgate seus diplomas.</p>
+            </div>
+            <div className="bg-slate-100 p-1 rounded-xl flex gap-1">
+              <button onClick={() => { playSound('click'); setTab("badges"); }} className={`px-4 py-1.5 text-xs font-black rounded-lg ${tab === 'badges' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'}`}>🥇 Selos</button>
+              <button onClick={() => { playSound('click'); setTab("certs"); }} className={`px-4 py-1.5 text-xs font-black rounded-lg ${tab === 'certs' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'}`}>📜 Diplomas</button>
+            </div>
+          </div>
+
+          {tab === 'badges' ? (
+            <div className="grid md:grid-cols-2 gap-4">
+              {items.map(item => (
+                <div key={item.id} className={`bg-white border rounded-2xl p-4 flex gap-4 items-center transition ${item.current ? 'border-amber-200' : 'opacity-60'}`}>
+                  <div className={`w-14 h-14 rounded-2xl shrink-0 flex items-center justify-center text-3xl shadow-sm border ${item.current ? 'bg-amber-150 border-amber-300' : 'bg-slate-50'}`}>{item.badge}</div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-800 text-xs leading-none">{item.title}</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">{item.desc}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-2">Requisito: {item.criteria}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {computedCertificates.map(c => (
+                <div key={c.id} className="bg-white border rounded-2xl p-5 flex flex-col md:flex-row items-stretch justify-between gap-4">
+                  <div>
+                    <h4 className="font-extrabold text-slate-800 text-sm leading-tight">{c.title}</h4>
+                    <p className="font-medium text-xs text-slate-400 mt-1">Nível de dificuldade: {c.difficulty} ({c.doneCount}/{c.totalCount} feitos)</p>
+                    <div className="mt-4 flex gap-6 text-xs font-bold text-slate-650 bg-slate-50 border border-slate-105 rounded-xl p-3">
+                      <div>Média obtida: <span className="text-emerald-600">{c.average} / 10.0</span></div>
+                      <div>Mínimo necessário: <span>7.0</span></div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col justify-end items-end shrink-0">
+                    {c.isClaimed ? (
+                      <button onClick={() => { playSound('click'); setViewingCert(c.data); }} className="px-4 py-2 bg-slate-800 text-white text-xs font-black rounded-lg">VER DIPLOMA</button>
+                    ) : c.isEligible ? (
+                      <button onClick={() => { playSound('powerup'); setClaimId(c.id); }} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-xs font-black rounded-lg">RESGATAR</button>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 bg-slate-50 border px-3 py-1 rounded-full uppercase font-black">PROGRESSO {c.percentage}%</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Resgate Input name overlay */}
+          {claimId && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-3xl p-6 max-w-sm w-full border text-center relative animate-fade-in shadow-xl">
+                <h3 className="font-black text-slate-800 text-md leading-none mb-1">📜 Identificação do Aluno</h3>
+                <p className="text-xs text-slate-405 mb-4">Insira seu nome completo oficial para registro definitivo no selo:</p>
+                <input
+                  type="text" value={nameInput} onChange={e => setNameInput(e.target.value)}
+                  placeholder="Nome do Programador" maxLength={32}
+                  className="w-full px-3 py-2 border rounded-xl font-bold text-xs bg-slate-50 focus:outline-none mb-4"
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => setClaimId(null)} className="flex-1 py-2 rounded-xl bg-slate-100 font-bold text-xs text-slate-600">Cancelar</button>
+                  <button
+                    onClick={() => {
+                      const cItem = computedCertificates.find(t => t.id === claimId);
+                      if (cItem) handleResgate(claimId, cItem.average, cItem.percentage);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-emerald-500 text-white font-black text-xs"
+                  >
+                    Gerar PDF / Selo
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Viewing PDF-Style License certificate */}
+          {viewingCert && (
+            <div className="fixed inset-0 bg-slate-900/90 flex items-center justify-center p-4 z-50 overflow-y-auto">
+              <div className="max-w-xl w-full my-8 relative">
+                <div className="absolute -top-12 left-0 right-0 flex justify-between items-center px-1 print:hidden">
+                  <button onClick={() => window.print()} className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center gap-1 shadow-md">🖨️ Imprimir / PDF</button>
+                  <button onClick={() => setViewingCert(null)} className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded text-xs">Fechar</button>
+                </div>
+
+                <div id="print-certificate-area" className="bg-white border-[16px] border-[#D4AF37] rounded-3xl p-8 relative overflow-hidden text-center text-slate-800 flex flex-col justify-between aspect-[1.414/1] shadow-2xl min-h-[400px]">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#B392ac]">ByteQuest Academy of Software Engineering</p>
+                    <h1 className="text-2xl font-serif text-slate-900 tracking-wide font-extrabold my-2">Certificado de Conclusão</h1>
+                    <div className="w-24 h-0.5 bg-[#D4AF37] mx-auto mb-6" />
+                    
+                    <p className="text-[11px] italic font-serif leading-relaxed text-slate-450">Certificamos com alto teor de louvor acadêmico e técnico que o desenvolvedor(a)</p>
+                    <h2 className="text-xl font-bold text-slate-800 my-3 underline decoration-[#D4AF37] decoration-2 underline-offset-4">{viewingCert.recipientName}</h2>
+                    <p className="text-[11px] text-slate-650 tracking-tight leading-relaxed max-w-sm mx-auto">concluiu a trilha conceitual de nível <strong>{viewingCert.difficulty}</strong> de linguagens de programação, alcançando uma <strong>Média Final de {viewingCert.averageGrade} / 10.0</strong> no simulador computacional.</p>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-left">
+                    <div className="text-[8px] font-mono leading-tight">
+                      <p className="font-extrabold text-[#D4AF37]">SELO DE DESEMPENHO</p>
+                      <p className="text-slate-450">BQ-ID: {(viewingCert.recipientName.length * 17).toString(16)}-{viewingCert.issueDate.replace(/\//g, '')}</p>
+                    </div>
+                    <div className="text-center font-sans text-[10px]">
+                      <p className="text-slate-400 font-bold uppercase tracking-wider text-[8px]">Data de Emissão</p>
+                      <p className="font-black text-slate-700 mt-0.5">{viewingCert.issueDate}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-serif italic text-xs font-handwriting border-b max-w-[100px] mx-auto pb-0.5 text-slate-700">Grace Hopper</p>
+                      <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Engenharia de Software</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- INTERACTIVE LESSON SCREEN SCREEN (QUIZ CORE ENGINE) ---
+    function LessonScreen({ module, onClose, userGems, onSpendGems, streakShields, userStreak, userHearts }) {
+      const [idx, setIdx] = useState(0);
+      const [hearts, setHearts] = useState(userHearts);
+      const [mistakes, setMistakes] = useState(0);
+      const [xp, setXp] = useState(0);
+      const [gameOver, setGameOver] = useState(false);
+      const [completed, setCompleted] = useState(false);
+
+      // States for questions
+      const [selectedOpt, setSelectedOpt] = useState(null);
+      const [typedBlank, setTypedBlank] = useState("");
+      const [availBlocks, setAvailBlocks] = useState([]);
+      const [ordBlocks, setOrdBlocks] = useState([]);
+      const [bugLine, setBugLine] = useState(null);
+
+      const [checked, setChecked] = useState(false);
+      const [correct, setCorrect] = useState(false);
+
+      const question = module.questions[idx];
+
+      useEffect(() => {
+        if (question) {
+          setChecked(false); setCorrect(false);
+          setSelectedOpt(null); setTypedBlank(""); setBugLine(null);
+          if (question.type === 'block-order' && question.blocks) {
+            setAvailBlocks([...question.blocks].sort(() => Math.random() - 0.5));
+            setOrdBlocks([]);
+          }
+        }
+      }, [idx, question]);
+
+      const handleBlock = (block, isAvailable) => {
+        if (checked) return;
+        playSound('click');
+        if (isAvailable) {
+          setAvailBlocks(prev => prev.filter(b => b !== block));
+          setOrdBlocks(prev => [...prev, block]);
+        } else {
+          setOrdBlocks(prev => prev.filter(b => b !== block));
+          setAvailBlocks(prev => [...prev, block]);
+        }
+      };
+
+      const handleCheck = () => {
+        if (checked || !question) return;
+        let isRight = false;
+        if (question.type === 'multiple-choice') {
+          isRight = selectedOpt === question.correctAnswer;
+        } else if (question.type === 'fill-blank') {
+          isRight = typedBlank.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
+        } else if (question.type === 'block-order') {
+          isRight = ordBlocks.length === question.correctBlocks.length && ordBlocks.every((b, i) => b === question.correctBlocks[i]);
+        } else if (question.type === 'bug-hunt') {
+          isRight = bugLine === question.correctLineIndex;
+        }
+
+        setChecked(true); setCorrect(isRight);
+        if (isRight) {
+          playSound('correct'); setXp(p => p + question.xpReward);
+        } else {
+          playSound('incorrect'); setMistakes(p => p + 1);
+          setHearts(h => {
+            const nextH = h - 1;
+            if (nextH <= 0) setGameOver(true);
+            return nextH;
+          });
+        }
+      };
+
+      const handleNext = () => {
+        if (idx + 1 < module.questions.length) {
+          setIdx(p => p + 1);
+        } else {
+          playSound('victory'); setCompleted(true);
+        }
+      };
+
+      const handleRevive = () => {
+        if (onSpendGems(30)) {
+          playSound('powerup'); setHearts(5); setGameOver(false);
+        }
+      };
+
+      const answered = () => {
+        if (question?.type === 'multiple-choice') return selectedOpt !== null;
+        if (question?.type === 'fill-blank') return typedBlank.trim().length > 0;
+        if (question?.type === 'block-order') return ordBlocks.length > 0;
+        if (question?.type === 'bug-hunt') return bugLine !== null;
+        return false;
+      };
+
+      if (gameOver) {
+        return (
+          <div className="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center relative border shadow-2xl animate-fade-in">
+              <span className="text-5xl block mb-4">😿</span>
+              <h2 className="text-xl font-black text-slate-800">Suas vidas acabaram!</h2>
+              <p className="text-xs text-slate-500 my-4 leading-relaxed">Você quer usar suas gemas para conseguir 5 corações e continuar do mesmo ponto do desafio?</p>
+              
+              <div className="bg-slate-50 rounded-xl p-3 mb-4 flex justify-around items-center text-xs border border-slate-100">
+                <div><p className="text-slate-400">Suas Gemas</p><p className="font-black text-slate-800">💎 {userGems}</p></div>
+                <div className="h-6 w-px bg-slate-200" />
+                <div><p className="text-slate-400">Reviver</p><p className="font-black text-slate-800">💎 30</p></div>
+              </div>
+
+              {streakShields > 0 ? (
+                <p className="text-[10px] text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl mb-4 text-left font-medium">🛡️ <strong>Amuleto de Ofensiva Seguro:</strong> Seu escudo protegerá seu streak de {userStreak} dia(s) se desistir.</p>
+              ) : userStreak > 0 ? (
+                <p className="text-[10px] text-amber-600 bg-amber-50 px-3 py-2 rounded-xl mb-4 text-left font-medium">⚠️ <strong>Sequência em Perigo:</strong> Desistir agora sem o Amuleto resetará sua ofensiva de {userStreak} dias!</p>
+              ) : null}
+
+              <button
+                onClick={handleRevive} disabled={userGems < 30}
+                className="w-full py-3 bg-amber-500 disabled:bg-slate-200 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-amber-500/10 mb-2"
+              >
+                Reviver (💎 30)
+              </button>
+              <button onClick={() => onClose(false, 0, 0, hearts, idx)} className="w-full py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs mt-2">Voltar ao Início</button>
+            </div>
+          </div>
+        );
+      }
+
+      if (completed) {
+        const bonus = Math.round(xp / 4);
+        const getGrade = () => {
+          if (mistakes === 0) return { letter: 'A+', text: 'Sênior Sem Erros! 🏆', desc: 'Sintaxe e raciocínio perfeitos.', color: 'bg-emerald-50 text-emerald-800' };
+          if (mistakes === 1) return { letter: 'A', text: 'Muito Bom! ⭐', desc: 'Apenas 1 pequeno deslize.', color: 'bg-green-50 text-green-800' };
+          return { letter: 'B', text: 'Excelente Esforço! 💪', desc: 'Manteve a calma e completou.', color: 'bg-blue-50 text-blue-800' };
+        };
+        const grade = getGrade();
+
+        return (
+          <div className="fixed inset-0 bg-white flex flex-col justify-between p-6 z-50 animate-fade-in overflow-y-auto">
+            <div className="flex-1 flex flex-col items-center justify-center max-w-sm mx-auto text-center py-8">
+              <span className="text-6xl mb-4">🎉</span>
+              <span className="text-[9px] font-black uppercase text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full animate-bounce">Módulo Concluído!</span>
+              <h2 className="text-2xl font-black text-slate-800 my-2">{module.title}</h2>
+              <p className="text-xs text-slate-400 mb-6">Suas habilidades aumentaram no painel ByteQuest.</p>
+
+              <div className={`w-full flex items-center gap-4 p-4 rounded-xl border ${grade.color} text-left mb-6`}>
+                <span className="w-12 h-12 bg-white rounded-lg border flex items-center justify-center font-black text-lg">{grade.letter}</span>
+                <div>
+                  <h4 className="font-extrabold text-xs leading-none">{grade.text}</h4>
+                  <p className="text-[11px] mt-1">{grade.desc}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 w-full">
+                <div className="bg-slate-50 border p-3 rounded-xl text-center">
+                  <span className="text-xs text-slate-400 font-bold block">XP RECEBIDO</span>
+                  <span className="text-xl font-bold block mt-1">+{xp}</span>
+                </div>
+                <div className="bg-slate-50 border p-3 rounded-xl text-center">
+                  <span className="text-xs text-slate-400 font-bold block">GEMAS BONUS</span>
+                  <span className="text-xl font-bold block mt-1">+{bonus}</span>
+                </div>
+              </div>
+            </div>
+            <div className="max-w-sm w-full mx-auto pb-4">
+              <button
+                onClick={() => onClose(true, xp, bonus, hearts, module.questions.length, mistakes)}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-sm rounded-xl transition"
+              >
+                Resgatar Medalha & Sair
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      const percent = Math.round((idx / module.questions.length) * 100);
+
+      return (
+        <div className="fixed inset-0 bg-white flex flex-col justify-between z-50 select-none overflow-y-auto animate-fade-in">
+          {/* Top Bar header */}
+          <div className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between max-w-2xl w-full mx-auto sticky top-0 z-10">
+            <button onClick={() => onClose(false, 0, 0, hearts, idx)} className="text-slate-400 hover:text-slate-800 transition">✕</button>
+            <div className="flex-1 mx-4 bg-slate-100 h-3 rounded-full overflow-hidden relative">
+              <div className="h-full bg-emerald-500 transition-all duration-200" style={{ width: `${percent}%` }} />
+              <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-slate-500">Exercício {idx + 1} de {module.questions.length}</span>
+            </div>
+            <div className="flex items-center gap-1.5"><Icon name="Heart" className="w-4 h-4 text-red-500 fill-red-500" /><span className="font-extrabold text-xs text-slate-705">{hearts}</span></div>
+          </div>
+
+          {/* Core interactive area */}
+          <div className="flex-1 w-full max-w-xl mx-auto px-6 py-8 flex flex-col justify-center">
+            {/* Mascot advice bubble */}
+            <div className="flex gap-3 mb-6 items-start">
+              <span className="text-4xl bg-emerald-100 w-12 h-12 rounded-xl flex items-center justify-center animate-bounce shrink-0">🤖</span>
+              <div className="bg-slate-50 border p-3.5 rounded-xl flex-1 relative">
+                <span className="text-[8px] font-black uppercase text-emerald-600 block mb-1">
+                  {question.type === 'multiple-choice' && 'MÚLTIPLA ESCOLHA'}
+                  {question.type === 'fill-blank' && 'PREENCHA A LACUNA'}
+                  {question.type === 'block-order' && 'ORDENAÇÃO DE BLOCOS'}
+                  {question.type === 'bug-hunt' && 'CAÇADOR DE BUGS (CLIQUE NO ERRO)'}
+                </span>
+                <p className="text-xs font-bold leading-tight text-slate-800">{question.instruction}</p>
+              </div>
+            </div>
+
+            {/* Render items by question type */}
+            <div className="flex-1 min-h-[160px] flex flex-col justify-center">
+              {question.type === 'multiple-choice' && (
+                <div className="grid gap-3">
+                  {question.options.map((opt, oIdx) => (
+                    <button
+                      key={oIdx} onClick={() => !checked && setSelectedOpt(opt)}
+                      className={`p-4 text-left border rounded-xl font-bold text-xs flex justify-between items-center transition ${
+                        selectedOpt === opt ? 'border-emerald-500 bg-emerald-50 text-emerald-805' : 'border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      <span>{opt}</span>
+                      <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-full">{oIdx + 1}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {question.type === 'fill-blank' && (
+                <div className="bg-slate-900 rounded-xl p-5 font-mono text-xs text-white leading-relaxed">
+                  <p className="font-sans text-slate-500 mb-3 text-[10px] uppercase">Terminal de Depuração</p>
+                  <span className="text-amber-400">{question.blankTextBefore}</span>
+                  <input
+                    type="text" value={typedBlank} onChange={e => !checked && setTypedBlank(e.target.value)}
+                    placeholder="sintaxe" style={{ width: `${Math.max(100, typedBlank.length * 10)}px` }}
+                    className="mx-2 bg-slate-800 border-b border-emerald-400 px-2 py-0.5 text-center text-emerald-400 focus:outline-none"
+                  />
+                  <span className="text-amber-400">{question.blankTextAfter}</span>
+                </div>
+              )}
+
+              {question.type === 'block-order' && (
+                <div className="space-y-4">
+                  <div className="bg-slate-50 border border-dashed rounded-xl p-4 min-h-[60px] flex flex-wrap gap-2 items-center">
+                    {ordBlocks.length === 0 ? <span className="text-[10px] text-slate-400 font-bold">Clique nos blocos para estruturar...</span> : ordBlocks.map((b, bIdx) => (
+                      <button key={bIdx} onClick={() => handleBlock(b, false)} className="bg-emerald-500 text-white font-mono text-xs px-3 py-1.5 rounded">{b}</button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-center pt-2">
+                    {availBlocks.map((b, bIdx) => (
+                      <button key={bIdx} onClick={() => handleBlock(b, true)} className="bg-white border rounded font-mono text-xs px-3 py-1.5">{b}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {question.type === 'bug-hunt' && (
+                <div className="bg-slate-900 border rounded-xl overflow-hidden font-mono text-xs text-slate-300 p-4">
+                  {question.buggyCode.map((line, lIdx) => (
+                    <div
+                      key={lIdx} onClick={() => !checked && setBugLine(lIdx)}
+                      className={`flex gap-3 py-1.5 px-3 rounded cursor-pointer ${bugLine === lIdx ? 'bg-red-500/20 text-red-301' : 'hover:bg-slate-800'}`}
+                    >
+                      <span className="text-slate-600 font-bold">{lIdx + 1}</span>
+                      <span className="whitespace-pre">{line}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Answer validation drawer footer */}
+          <div className={`border-t select-none py-5 transition-all ${
+            checked ? correct ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100' : 'bg-white'
+          }`}>
+            <div className="max-w-xl mx-auto px-6 flex items-center justify-between gap-4">
+              <div className="flex-1 flex gap-3 text-xs leading-relaxed">
+                {checked ? (
+                  correct ? (
+                    <div>
+                      <h4 className="font-extrabold text-emerald-900">Perfeito! (+{question.xpReward} XP)</h4>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">{question.explanation}</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 className="font-extrabold text-red-900">Incorreto! (-1 Vida)</h4>
+                      <p className="text-[11px] text-red-750 mt-0.5">{question.explanation}</p>
+                    </div>
+                  )
+                ) : (
+                  <span className="text-slate-400 font-medium">Responda a questão acima para habilitar a checagem.</span>
+                )}
+              </div>
+              <div>
+                {!checked ? (
+                  <button
+                    onClick={handleCheck} disabled={!answered()}
+                    className="px-5 py-3 bg-emerald-500 disabled:bg-slate-100 disabled:text-slate-400 text-white font-black text-xs uppercase rounded-xl"
+                  >
+                    Checar Resposta
+                  </button>
+                ) : (
+                  <button onClick={handleNext} className="px-5 py-3 bg-slate-800 text-white font-black text-xs uppercase rounded-xl">Continuar</button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- MAIN APP CONTROLLER ---
+    function App() {
+      const [progress, setProgress] = useState(getInitialProgress());
+      const [tab, setTab] = useState("trilhas");
+      const [diff, setDiff] = useState("Iniciante");
+      const [activeModule, setActiveModule] = useState(null);
+
+      // Achievements triggers popup
+      const [popup, setPopup] = useState(null);
+
+      // Confirmation resets
+      const [showReset, setShowReset] = useState(false);
+
+      // Local storage setup loading
+      useEffect(() => {
+        try {
+          const s = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (s) setProgress(JSON.parse(s));
+        } catch (e) {
+          console.warn("Local storage blocked.", e);
+        }
+      }, []);
+
+      const save = (newP) => {
+        const withT = { ...newP };
+        if (withT.hearts < 5) {
+          if (!withT.lastHeartsUpdateTime) withT.lastHeartsUpdateTime = Date.now();
+        } else {
+          withT.lastHeartsUpdateTime = undefined;
+        }
+
+        // Achievements verification on the fly
+        try {
+          const unlocked = {
+            'first': withP => withP.completedModules.length >= 1,
+            'gem': withP => withP.gems >= 50,
+            'streak': withP => withP.streak > 0,
+            'completionist': withP => withP.completedModules.length >= 3
+          };
+
+          Object.keys(unlocked).forEach(k => {
+            const before = unlocked[k](progress);
+            const after = unlocked[k](withT);
+            if (after && !before) {
+              const itemsMap = {
+                'first': { title: 'Iniciando Motores 🚀', desc: 'Concluiu sua primeira trilha de desafio lúdico no ByteQuest!' },
+                'gem': { title: 'Burguês do Código 💎', desc: 'Chegou à carteira cheia trazendo 50 ou mais moedas de gemas!' },
+                'streak': { title: 'Mestre Disciplinado 🔥', desc: 'Abriu sequência histórica mantendo seus estudos em dia!' },
+                'completionist': { title: 'Mestre Poliglota 🏆', desc: 'Completou de ponta a ponta 3 módulos conceituais!' }
+              };
+              playSound('powerup');
+              setPopup(itemsMap[k]);
+            }
+          });
+        } catch (e) { console.warn(e); }
+
+        setProgress(withT);
+        try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(withT)); } catch (e) {}
+      };
+
+      // Background regeneration timer
+      useEffect(() => {
+        if (progress.hearts >= 5) return;
+        const check = () => {
+          const now = Date.now();
+          const last = progress.lastHeartsUpdateTime || now;
+          const elapsed = now - last;
+          if (elapsed >= 3600000) {
+            const add = Math.floor(elapsed / 3600000);
+            setProgress(p => {
+              const h = Math.min(5, p.hearts + add);
+              const updateT = h === 5 ? undefined : last + (add * 3600000);
+              const res = { ...p, hearts: h, lastHeartsUpdateTime: updateT };
+              try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(res)); } catch (e) {}
+              return res;
+            });
+          }
+        };
+        check(); const int = setInterval(check, 6000); return () => clearInterval(int);
+      }, [progress.hearts, progress.lastHeartsUpdateTime]);
+
+      const refill = () => {
+        if (progress.hearts >= 5) return;
+        const cost = 20; if (progress.gems < cost) return;
+        save({ ...progress, hearts: 5, gems: progress.gems - cost });
+      };
+
+      const handleBuyTheme = (id, cost) => {
+        if (progress.gems < cost) return;
+        save({ ...progress, gems: progress.gems - cost, purchasedThemes: [...progress.purchasedThemes, id], activeTheme: id });
+      };
+
+      const handleBuyShield = (cost) => {
+        if (progress.gems < cost) return;
+        save({ ...progress, gems: progress.gems - cost, streakShields: (progress.streakShields || 0) + 1 });
+      };
+
+      const handleCloseLesson = (done, rewardXp, earnedGems, heartsEnd, qSolved, mistakesCount = 0) => {
+        setActiveModule(null);
+        if (!activeModule) return;
+
+        const qCount = activeModule.questions.length;
+        const pctProg = qCount > 0 ? Math.round((qSolved / qCount) * 100) : 0;
+        
+        const curGrade = progress.moduleGrades?.[activeModule.id] || 0;
+        const calcGrade = done ? Math.max(0, parseFloat((10 - (mistakesCount * (10 / qCount))).toFixed(1))) : 0;
+        
+        const grs = { ...(progress.moduleGrades || {}), [activeModule.id]: Math.max(curGrade, calcGrade) };
+        const savedPercent = done ? Math.round(calcGrade * 10) : pctProg;
+        
+        const curP = progress.moduleProgress?.[activeModule.id] || 0;
+        const progs = { ...(progress.moduleProgress || {}), [activeModule.id]: Math.max(curP, savedPercent) };
+
+        if (done) {
+          const listDone = progress.completedModules.includes(activeModule.id) ? progress.completedModules : [...progress.completedModules, activeModule.id];
+          save({
+            ...progress, xp: progress.xp + rewardXp, gems: progress.gems + earnedGems,
+            completedModules: listDone, moduleGrades: grs, moduleProgress: progs,
+            hearts: heartsEnd, streak: progress.streak + 1
+          });
+        } else {
+          if (heartsEnd <= 0) {
+            const hasShield = (progress.streakShields || 0) > 0;
+            const streakCount = progress.streak;
+            let shieldLeft = progress.streakShields || 0;
+            let activeStreak = streakCount;
+
+            if (hasShield) {
+              shieldLeft -= 1;
+              alert(`🛡️ Equipe Salva! Seu Amuleto de Ofensiva foi consumido. Sequência de ${streakCount} dias preservada!`);
+            } else {
+              activeStreak = 0;
+              alert("💔 Game Over! Suas vidas acabaram e você perdeu seu streak diário de estudos.");
+            }
+            save({ ...progress, hearts: 0, streak: activeStreak, streakShields: shieldLeft, moduleProgress: progs });
+          } else {
+            save({ ...progress, hearts: Math.max(0, progress.hearts - 1), moduleProgress: progs });
+            alert("Você abandonou o desafio e perdeu ❤️ 1 vida. Progresso parcial salvo.");
+          }
+        }
+      };
+
+      // Active selected theme settings injection
+      const getThemeStyles = () => {
+        if (progress.activeTheme === 'dracula') {
+          return { container: 'bg-[#282a36] text-[#f8f8f2] min-h-screen font-sans', hr: 'bg-[#1e1f29] border-[#44475a] text-[#ff79c6]', side: 'bg-[#1e1f29]' };
+        } else if (progress.activeTheme === 'matrix') {
+          return { container: 'bg-black text-[#00ff41] min-h-screen font-mono', hr: 'bg-[#0f0f0f] border-[#00ff41]/50 text-[#00ff41]', side: 'bg-black' };
+        } else if (progress.activeTheme === 'vscode') {
+          return { container: 'bg-[#1e1e1e] text-[#d4d4d4] min-h-screen font-sans', hr: 'bg-[#252526] border-[#3c3c3c] text-[#569cd6]', side: 'bg-[#252526]' };
+        }
+        return { container: 'bg-slate-50 text-slate-800 min-h-screen font-sans', hr: 'bg-white border-slate-200 border-b text-slate-800', side: 'bg-white' };
+      };
+      const theme = getThemeStyles();
+
+      return (
+        <div className={theme.container}>
+          {activeModule ? (
+            <LessonScreen
+              module={activeModule} onClose={handleCloseLesson}
+              userGems={progress.gems} onSpendGems={amount => { if (progress.gems >= amount) { save({ ...progress, gems: progress.gems - amount }); return true; } return false; }}
+              streakShields={progress.streakShields || 0} userStreak={progress.streak} userHearts={progress.hearts}
+            />
+          ) : (
+            <div className="flex flex-col md:flex-row min-h-screen">
+              <Sidebar activeTab={tab} setActiveTab={setTab} stats={{ xp: progress.xp, hearts: progress.hearts, streak: progress.streak, gems: progress.gems, lastHeartsUpdateTime: progress.lastHeartsUpdateTime }} onRefill={refill} />
+              
+              <main className="flex-1 flex flex-col min-h-screen">
+                <header className={`px-6 py-4 flex items-center justify-between ${theme.hr}`}>
+                  <div className="flex items-center gap-1.5"><span className="text-xs font-black uppercase bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">Tema: {progress.activeTheme}</span></div>
+                  <button onClick={() => { playSound('click'); setShowReset(true); }} className="text-[9px] uppercase font-black text-red-500 bg-red-50 border border-red-200 px-2 py-1 rounded">Resetar Tudo</button>
+                </header>
+
+                <div className="flex-1">
+                  {tab === 'trilhas' && <Dashboard progress={progress} onStartLesson={setActiveModule} selectedDifficulty={diff} setSelectedDifficulty={setDiff} />}
+                  {tab === 'dicionario' && <Glossary />}
+                  {tab === 'loja' && <Shop gems={progress.gems} hearts={progress.hearts} streakShields={progress.streakShields || 0} activeTheme={progress.activeTheme} purchasedThemes={progress.purchasedThemes} lastHeartsUpdateTime={progress.lastHeartsUpdateTime} onRefill={refill} onBuyTheme={handleBuyTheme} onSelectTheme={id => save({ ...progress, activeTheme: id })} onBuyShield={handleBuyShield} />}
+                  {tab === 'conquistas' && <Achievements progress={progress} onUpdateProgress={save} />}
+                </div>
+              </main>
+            </div>
+          )}
+
+          {/* Trigger reward popup badge */}
+          {popup && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[99999]">
+              <div className="bg-white text-slate-800 rounded-3xl p-6 max-w-sm w-full text-center border-4 border-amber-400 shadow-2xl relative animate-fade-in">
+                <h3 className="text-xl font-black">{popup.title}</h3>
+                <p className="text-xs text-slate-500 my-3 leading-relaxed">{popup.desc}</p>
+                <button onClick={() => setPopup(null)} className="w-full py-2.5 bg-amber-500 text-white font-extrabold text-xs rounded-xl">Excelente!</button>
+              </div>
+            </div>
+          )}
+
+          {/* Reset progression popup */}
+          {showReset && (
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 z-[99999]">
+              <div className="bg-white text-slate-800 rounded-2xl p-6 max-w-sm w-full border text-center shadow-2xl relative animate-fade-in">
+                <h3 className="text-md font-black text-slate-800 mb-2">🚨 Resetar todo o progresso?</h3>
+                <p className="text-xs text-slate-500 mb-4 leading-relaxed">Isso apagará definitivamente todo seu progresso lúdico, gemas e conquistas no ByteQuest.</p>
+                <div className="flex gap-2.5">
+                  <button onClick={() => setShowReset(false)} className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold">Cancelar</button>
+                  <button
+                    onClick={() => {
+                      playSound('incorrect'); const f = getInitialProgress();
+                      try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(f)); } catch(e){}
+                      setProgress(f); setTab("trilhas"); setDiff("Iniciante"); setShowReset(false);
+                    }}
+                    className="flex-1 py-2 bg-red-500 text-white rounded-xl text-xs font-black"
+                  >
+                    Sim, Resetar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+</body>
+</html>
